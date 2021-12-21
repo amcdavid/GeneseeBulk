@@ -1,0 +1,12 @@
+test_that("Can extract REs from formula",{
+  f1 = formula(y ~ x*z + (1| id))
+  expect_equal(extract_re_var(f1), list(re_id = "id", fe_form = "~ x+z+x:z"))
+  f2 = formula(y ~(1|id))
+  expect_equal(extract_re_var(f2), list(re_id = "id", fe_form = "~ 1"))
+  f3 = formula(y ~ (1| id:pop))
+  expect_error(extract_re_var(f3), 'id:pop')
+  f4 = formula(y ~ x + (x|pop))
+  expect_error(extract_re_var(f4), 'parse')
+  f5 =  formula(y ~ x + (1|pop) + (1|id))
+  expect_error(extract_re_var(f5), 'specify one')
+})

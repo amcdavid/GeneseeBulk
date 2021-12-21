@@ -1,0 +1,9 @@
+# name: identifier used for plotting, etc
+# formula DESeq2 formula
+# subset_expr -- expression evaluated using the colData
+# contrast -- currently unused
+name,formula,subset_expr,contrast
+all,~treatment*background,,
+diet,~treatment*background,group=='diet',
+ob,~treatment*background,group=='ob',
+db,~treatment*background,group=='db',

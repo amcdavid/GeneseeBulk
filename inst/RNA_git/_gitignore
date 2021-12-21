@@ -1,0 +1,11 @@
+.Rhistory
+.RData
+.Rproj.user
+#refined/
+renv/library/
+renv/staging/
+rawdata/**/
+GeneseeSC
+*_cache/
+*_files/
+scratch/**/

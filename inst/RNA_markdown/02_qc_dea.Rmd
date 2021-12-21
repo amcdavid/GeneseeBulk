@@ -1,0 +1,432 @@
+---
+title: "QC and Differential Expression for {{Genesee.title}} project"
+subtitle: "Template version {{Genesee.version}}"
+author: "{{Genesee.authors}}"
+date: '`r Sys.Date()`'
+params:
+  input_root: "refined/01_load_se.rds"
+  output_root: "refined/02_qc_dea" #prefix for output
+  se_subset: NULL # NULL or character. An arbitrary R expression to be parsed and evaled.
+                   # should assign to `se`.
+  plot_covariates: NULL #character vector in colData(se) used as aestetics for some plots
+  sample_id: 'sample_id' #field in colData(se) containing sampleID identifiers
+  features_csv: NULL # csv with fields SYMBOL / gene_group.
+  fdr_level: 0.1 # significance level used for plots / venn diagrams
+  terms_annotation_csv: NULL # csv file containing a cross-walk between the models fit, terms r turned, the term_class (used to group equivalent terms in stratified models), plot_volcano ` ogical` if a volcano plot should be made
+  design_csv: NULL # csv with fields name,formula,subset_expression,contrast.  Used to fit D Seq2 models.
+  dea_method: "deseq2" # "deseq2", "nebula" or "glmer.nb"
+  cache: FALSE
+  organism: 'mouse'
+output:
+  rmdformats::html_clean:
+    code_folding: hide
+    toc: yes
+    toc_float: yes
+---
+
+Notes:
+    
+```{r libraries, results='hide', echo = FALSE, warning = FALSE, message = FALSE}
+suppressPackageStartupMessages({
+library(GeneseeSC)
+library(DESeq2)
+library(dplyr)
+library(stringr)
+library(ggplot2)
+library(ggrepel)
+library(readr)
+library(GGally)
+library(ggbeeswarm)
+library(tibble)
+library(tidyr)
+library(biobroom)
+library(broom)
+library(ComplexHeatmap)
+})
+knitr::opts_chunk$set(warning = FALSE, error = FALSE, message = FALSE, echo = TRUE, dev = c('png', 'pdf'), cache = params$cache, autodep = params$cache)
+```
+
+Knit with:
+```{r}
+print(params)
+```
+
+
+```{r load, cache.extra = params$input_root}
+se = readRDS(params$input_root)
+```
+
+```{r subset, eval = !is.null(params$se_subset), code = params$se_subset}
+
+```
+
+```{r}
+designs = read_csv(params$design_csv, comment = "#")
+```
+
+```{r}
+if(ncol(colData(se))<1) stop("Expecting non-empty colData")
+if(is.null(params$plot_covariates)){
+  plot_covariates = rep(names(colData(se)), 2)[1:2] # ensure at least length two
+} else{
+  plot_covariates = params$plot_covariates
+}
+```
+
+```{r}
+dge = DESeqDataSet(se=se, design = as.formula(designs$formula[1]))
+```
+
+```{r, eval = !is.null(params$features_csv)}
+if(!file.exists(params$features_csv)){
+  warning('Could  not open ', params$features_csv)
+} else{
+  feature_sheet = read_csv(params$features_csv)
+  rowData(dge) = left_join(as.data.frame(rowData(dge)), feature_sheet, by = 'SYMBOL')
+}
+
+```
+
+```{r}
+#design(dge) = ~ groupf
+
+#genes_plus_random = union(which(!is.na(rd$group)), sample(nrow(rd), 200))
+
+logcpm = function(x){
+    total = colSums(counts(x))
+ log2( 1e6*t(counts(x))/total + 1)
+}
+
+colData(dge) = cbind(colData(dge), logcpm(dge)[, !is.na(rowData(dge)$group)])
+```
+
+
+
+
+
+```{r filter}
+dge_f = dge#[!duplicated(dge$genes$ENSEMBL) | is.na(dge$genes$ENSEMBL),]
+#dge_f = dge[,dge$group == params$group]
+dge_f = estimateSizeFactors(dge_f)
+null = rowSums(counts(dge_f) > 5) < 3
+dge_f = dge_f[!null,]
+ds_trans = vst(dge_f)
+```
+
+```{asis, eval = !is.null(params$features_csv)}
+## Control genes and other genes of special interest
+```
+
+```{r feature-genes, eval = !is.null(params$features_csv)}
+dge_genes = dge_f
+assay(dge_genes, 'cpm') = 2^(t(logcpm(dge_genes))-1)
+assays(dge_genes) = list(counts = assays(dge_genes)[['cpm']])
+dge_genes = dge_genes[feature_sheet$SYMBOL,]
+genes_of_interest = feature_sheet %>% left_join(tidy(dge_genes, colData = TRUE), c('SYMBOL' = 'gene'))
+
+gi_plot = ggplot(genes_of_interest,  aes(x = SYMBOL, y = count, color = .data[[params$plot_covariates[1]]], shape = .data[[params$plot_covariates[2]]])) + geom_quasirandom(size = 1, groupOnX = TRUE) +  scale_y_continuous(trans = 'log2') +ylab('Counts per million reads') + coord_flip() + theme_minimal() + theme(axis.text.x = element_text(angle = 90))
+
+gi_plot
+```
+
+# PCA
+
+### Overall PCA
+
+```{r PCA}
+pca_overall = GeneseeSC:::se_pca_plot(ds_trans, aes_point = aes(color = .data[[params$plot_covariates[1]]], shape = .data[[params$plot_covariates[2]]]), aes_label = aes(label = .data[[params$sample_id]]))
+```
+
+Plot PCA
+
+```{r}
+plotLoadings(pca_overall$pca)
+```
+
+Plot PCA loadings
+
+
+```{r, results = 'hide', eval = TRUE}
+library(PMA)
+library(ggord)
+
+```
+
+## Sparse PCA
+
+```{r, results = 'hide'}
+bspca = se_sparsepca_plot(ds_trans, grp_in = plot_covariates[1], 
+                          color_by = sym(plot_covariates[2]), label_by = sym(params$sample_id),
+                          SPC_args = list(sumabs = 4),
+                          ggord_args = list(alpha_el = .3, ext = 1, vec_ext = 1.1, size = 2, txt = 2))
+bspca$ord1
+```
+
+This is a variant of principal component analysis that focuses on finding a minimum set of genes that explain maximal variance.  The overall picture tends to be similar to ordinary PCA, but the coordinates might be flipped.  The genes labelled on the plot shows how those genes contribute to where the samples are arrayed in PCA space.
+
+# Differential expression testing
+
+Currently we test `r nrow(designs)` different models.  Specifications are shown below:
+
+```{r}
+knitr::kable(designs)
+```
+
+```{r}
+dea_method = match.arg(params$dea_method, c('deseq2', 'nebula'))
+```
+
+
+```{r run-deseq2, eval = dea_method == 'deseq2'}
+dew = purrr::map2(setNames(designs$formula, designs$name), designs$subset_expr, function(x, y) run_deseq_design(dge_f,  as.formula(x), y))
+```
+
+```{r run-nebula, eval = dea_method == 'nebula'}
+design_fit = designs[has_re(designs$formula),]
+dew = purrr::map2(setNames(design_fit$formula, design_fit$name), design_fit$subset_expr, function(x, y) run_glmm_nb_design(dge_f,  formula_ = as.formula(x), subset_ = y, method = 'nebula'))
+```
+
+```{r}
+dew_df = purrr::map_dfr(dew, tidy, .id = 'model') %>% dplyr::rename(SYMBOL = gene)
+models_and_terms = dew_df %>% count(model, term)
+knitr::kable(models_and_terms)
+```
+
+Models fit and terms returned.
+
+```{r, eval = is.null(params$terms_annotation_csv)}
+
+# **term** matches the output from DESeq
+# **model** matches the model in `designs`
+# **term_class** groups similar terms across models.  useful when different stratifications are used
+# **plot_volcano** logical, should volcano and heatmaps be generated
+# **description** optional field used to explain the model term in plots, etc
+models = tribble(~ term, ~ model, ~ term_class, ~plot_volcano,
+        'background_hfd_vs_chow', 'diet', 'bg', FALSE,
+        'background_db.db_vs_db.het', 'db', 'bg', FALSE,
+        'background_ob.ob_vs_ob.het', 'ob', 'bg',FALSE,
+        'treatment_blm_vs_pbs', 'diet', 'treat',TRUE,
+        'treatment_blm_vs_pbs', 'db', 'treat',TRUE,
+        'treatment_blm_vs_pbs', 'ob', 'treat',TRUE,
+        'treatmentblm.backgrounddb.db', 'db', 'inter', TRUE,
+        'treatmentblm.backgroundhfd', 'diet', 'inter', TRUE,
+        'treatmentblm.backgroundob.ob', 'ob', 'inter', TRUE)
+#^^^^^ models/terms to plot. modify as needed
+write_csv(models_and_terms %>% mutate(term_class = NA, plot_volcano = TRUE, description = NA), paste0(params$output_root, '_terms.csv'))
+message("Consider editing ", paste0(params$output_root, '_terms.csv'),  " to provide this as a csv via `params$terms_annotation_csv`.")
+``` 
+
+```{r, eval = !is.null(params$terms_annotation_csv)}
+models = read_csv(params$terms_annotation_csv)
+```
+
+```{r}
+ 
+count_sig = semi_join(dew_df, models) %>% group_by(SYMBOL) %>% 
+    summarize(n_sig = sum(padj < .1, na.rm = TRUE), geomean_pvalue = sum(log10(pvalue), na.rm = TRUE), geovar_pvalue = var(log10(pvalue), na.rm = TRUE))
+
+sig_contrasts = semi_join(dew_df, count_sig %>% filter(rank(geomean_pvalue)<20)) %>% left_join(models)
+
+plt = ggplot(sig_contrasts, aes(y = SYMBOL, x = log2FoldChange, color = model)) + geom_text(aes(label = term_class))
+plt + geom_vline(xintercept = 0, lty = 2)
+```
+
+
+```{r heatmaps, fig.height = 7}
+models_plot = filter(models, plot_volcano)
+
+for(m in seq_len(nrow(models_plot))){
+  this_model = models_plot[[m,'model']]
+  print(modified_volc(dew[[this_model]],  name = models_plot[[m, 'term']], heatmap_top_group = plot_covariates, heatmap_max_gene = 40,
+                      title = sprintf("%s in %s background", models_plot[[m, 'term_class']], this_model)))
+                               # ^^^ Modify as needed
+}
+```
+
+## Venn diagrams of results
+
+```{r venn}
+terms_by_model = left_join(models, dew_df) %>% ungroup() %>% 
+  filter(padj < params$fdr_level) %>% mutate(direction = sign(log2FoldChange))
+
+terms_by_model_list = terms_by_model %>% split(.$term_class)
+
+for(i in seq_along(terms_by_model_list)){
+  gene_subset = terms_by_model_list[[i]] %>% select(SYMBOL, model)
+  n_model = count(gene_subset, model)
+  gene_subset = left_join(gene_subset, n_model) %>% 
+    transmute(SYMBOL, model = glue::glue("{model}({n} genes)"))
+  v = venneuler::venneuler(gene_subset)
+  
+  plot(v, main = names(terms_by_model_list)[i])
+}
+```
+
+Genes significant at `r params$fdr_level` by model group.
+
+
+Venn diagram
+
+# Gene set enrichment
+
+```{r hyper-geo-setup}
+library(clusterProfiler)
+
+db = switch(params$organism[1],
+            mouse = "org.Mm.eg.db",
+            human = "org.Hs.eg.db")
+
+remap = bitr(unique(dew_df$SYMBOL), 'SYMBOL', 'ENTREZID', db, drop = FALSE)
+
+# take subset of term, and create model below...
+gsea_genes = left_join(dew_df, remap, by = 'SYMBOL') %>% 
+  mutate(direction = factor(sign(log2FoldChange), labels = c('-1' = 'down', '1' = 'up'))) %>% 
+  left_join(models) %>% 
+  filter(padj < params$fdr_level, abs(log2FoldChange) > 1, plot_volcano) %>% 
+  group_by(term, direction)
+
+term_direction_drop = gsea_genes %>% 
+  group_by(term, direction) %>%
+  summarize(n = n()) %>% 
+  filter(n < 10)
+```
+
+
+```{r hyper-geo-drop, results = 'as.is'}
+knitr::kable(term_direction_drop)
+
+gsea_genes = gsea_genes %>% anti_join(term_direction_drop)
+```
+
+Dropping the following sets for having < 10 enriched genes.
+
+```{r hyper-geo}
+cc_go = compareCluster(ENTREZID ~ term + direction, 
+                       data = gsea_genes, 
+                       OrgDb = db, readable = TRUE, universe = unique(remap$ENTREZID), 
+                       fun = 'enrichGO')
+```
+
+```{r clusterGO, fig.width=6, fig.height=4}
+dotplot(cc_go, font.size = 6, showCategory = 12) + 
+  theme(axis.text.x = element_text(angle = 90))
+```
+
+### Blood transcription modules
+
+We also consider modules defined in "Molecular signatures of antibody responses derived from a systems biological study of 5 human vaccines" ([Li 2014](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3946932/)) which used a RNAseq time course on in vivo gene expression changes following vaccination using several different vaccines, and curation of differentially expressed genes into modules.
+
+```{r clusterBMT, fig.width=6, fig.height=6, eval = FALSE}
+gmtfile <- 'reference/Li_2014_BTM/BTM_for_GSEA_20131008.gmt'
+btm <- read.gmt(gmtfile)
+split_tovector = function(x, nm) sort(setNames(x, nm), decreasing = TRUE)
+
+
+cc_bmt = compareCluster(SYMBOL ~ pop + direction, data = filter(dew_df, pvalue < .01, abs(log2FoldChange) > 1 ), fun = "enricher", TERM2GENE = btm, universe = rownames(dge_f))
+
+effect_group = purrr::map(split(dew_df, dew_df$pop), function(x) split_tovector(x[['stat']], x[['SYMBOL']]))
+
+gsea_group = purrr::map(effect_group, GSEA, TERM2GENE = btm, pvalueCutoff = 1.1, )
+gsea_groupdf = purrr::map_dfr(gsea_group, as.data.frame, .id = 'pop')
+gsea_groupdf = gsea_groupdf %>% group_by(pop) %>% mutate(rank = rank(p.adjust)) %>% group_by(ID) %>% mutate(min_rank = min(rank)) %>% filter(min_rank < 6)
+
+gsea_groupdf = ungroup(gsea_groupdf) %>% mutate(ID_name = str_wrap(ID, 30))
+
+gsea_plot = ggplot(gsea_groupdf, aes(y = pop, x = enrichmentScore, fill = cut(p.adjust, c(0, .01, .05, .1, .2,  1)))) + geom_point(shape = 21) + scale_fill_brewer('FDR', direction = -1, type = 'seq', palette = 'YlOrBr') + facet_wrap(~ID_name) + theme_minimal() + theme(strip.text = element_text(size = 5)) + geom_vline(xintercept = 0, lty = 2) 
+
+gsea_plot
+
+
+
+dotplot(cc_bmt, font.size = 6, showCategory = 20) + theme(axis.text.x = element_text(angle = 90))
+```
+
+### Catalina 2019 signatures
+
+```{r catalina, fig.width=6, fig.height=6, eval = FALSE}
+gmxfile = 'reference/catalina_ifn_v2/catalina_2019_IFN_gene_sets_v2.gmx'
+catalina_mod = readr::read_tsv(gmxfile) %>% tidyr::pivot_longer(everything()) %>% filter(!is.na(value)) %>% rename(ont = name, gene = value)
+
+gsea_group = purrr::map(effect_group, GSEA, TERM2GENE = catalina_mod, pvalueCutoff = 1.1)
+gsea_groupdf = purrr::map_dfr(gsea_group, as.data.frame, .id = 'pop')
+
+gsea_groupdf = ungroup(gsea_groupdf) %>% mutate(ID_name = str_replace_all(ID, 'CATALINA_2019_S2_', ''))
+
+
+gsea_plot %+% gsea_groupdf
+
+cc_catalina = compareCluster(SYMBOL ~ pop + direction, data = filter(dew_df, pvalue < .01, abs(log2FoldChange) > 1 ), fun = "enricher", TERM2GENE = catalina_mod, universe = rownames(dge_f), pvalueCutoff = 1.1, qvalueCutoff = 1.1)
+
+dotplot(cc_catalina, font.size = 6, showCategory = 20) + theme(axis.text.x = element_text(angle = 90))
+```
+
+
+### MsigDB immunogenic signatures
+
+Using http://software.broadinstitute.org/gsea/msigdb/collection_details.jsp#C7
+
+```{r clusterMsigDB, fig.width = 8, fig.height=10, eval = FALSE}
+gmtfile <- 'reference/c7.all.v7.0.symbols.gmt'
+c7 <- read.gmt(gmtfile)
+
+cc_c7 = compareCluster(SYMBOL ~ pop + direction, data = filter(dew_df, pvalue < .01, abs(log2FoldChange)>1), fun = "enricher", TERM2GENE = c7, universe = rownames(dge_f))
+
+dotplot(cc_c7, font.size = 6) + theme(axis.text.x = element_text(angle = 90))
+```
+
+```{r write_results, eval = FALSE}
+all_go = rbind(cc_go@compareClusterResult,
+      cc_bmt@compareClusterResult,
+      cc_c7@compareClusterResult)
+
+readr::write_csv(all_go, path = 'enrichment_by_subpop.csv')
+readr::write_csv(dew_df, path = 'tests_by_subpop.csv')
+```
+
+```{r go, dev = c('png', 'pdf'), fig.width=8, fig.height=8, eval = FALSE}
+library(clusterProfiler)
+
+
+gene = filter(td_pnd4, fdr < .01, !is.na(gene), abs(estimate) > 1) %>% mutate(SYMBOL = gene)
+
+
+gene.df <- bitr(gene$SYMBOL, fromType = "SYMBOL",
+        toType = c("ENTREZID", "ENSEMBL", "SYMBOL"),
+        OrgDb = org.Mm.eg.db::org.Mm.eg.db)
+
+gene.df = left_join(gene.df, gene)
+
+bg =  bitr(td_pnd4$gene, fromType = "SYMBOL",
+        toType = c("ENTREZID", "ENSEMBL", "SYMBOL"),
+        OrgDb = org.Mm.eg.db::org.Mm.eg.db)
+
+ego <- enrichGO(gene          = gene.df$ENTREZID,
+                universe      =  bg$ENTREZID,
+                OrgDb         =  org.Mm.eg.db::org.Mm.eg.db,
+                ont           = "ALL",
+                pAdjustMethod = "fdr",
+                keytype = "ENTREZID",
+                minGSSize = 3,
+                pvalueCutoff  = 0.2,
+                qvalueCutoff  = 0.1,
+                pool = TRUE,
+        readable      = TRUE)
+
+ego_subset = dropGO(ego, term =  c('GO:0016053', 'GO:0006418', 'GO:0004812',
+                                   'GO:0016875', 'GO:0016876', 'GO:0043039', 
+                                   'GO:0043038', 'GO:0044283'))
+
+dotplot(ego, showCategory = 20)
+
+dotplot(ego_subset, showCategory = 5)
+cnetplot(ego_subset, showCategory = 2, categorySize = 'pvalue', foldChange = AMmisc::clamp(setNames(gene.df$estimate, gene.df$ENTREZID), 3))
+
+```
+
+```{r write_deseq}
+assays(dge_f) = assays(dge_f)['counts']
+saveRDS(dge_f, file = paste0(params$output_root, '_se.rds'))
+
+to_write = left_join(dew_df, models_plot)
+write_csv(to_write, paste0(params$output_root, '_results.csv'))
+```

@@ -1,0 +1,71 @@
+---
+title: "Load/Format {{Genesee.title}} project"
+subtitle: "Template version {{Genesee.version}}"
+author: "{{Genesee.authors}}"
+date: '`r Sys.Date()`'
+params:
+   input_tsv: "deSeq_counts.txt"
+   input_project: NULL
+   sample_sheet_csv: "all_samples_file.csv" # see ?make_sample_sheet
+   output_root: "refined/01load" #prefix for output
+output:
+  rmdformats::html_clean:
+    code_folding: hide
+    toc: yes
+    toc_float: yes
+---
+  
+    
+```{r libraries, results='hide', echo = FALSE, warning = FALSE, message = FALSE}
+suppressPackageStartupMessages({
+library(GeneseeSC)
+library(DESeq2)
+library(dplyr)
+library(stringr)
+library(readr)
+})
+knitr::opts_chunk$set(warning = FALSE, error = FALSE, message = FALSE)
+```
+
+```{r load, eval = is.null(params$input_project)}
+counts = read_tsv(params$input_tsv)
+names(counts)[1] = 'SYMBOL'
+cd = tibble(sample_id = names(counts)[-1])
+```
+
+```{r joinss, eval = !is.null(params$sample_sheet_csv), results = 'asis', cache.whatever=list(params$sample_sheet_csv)}
+sample_sheet = read_csv(params$sample_sheet_csv)
+sample_sheet$sample_id = as.character(sample_sheet$sample_id)
+print(knitr::kable(sample_sheet, caption = "Sample Sheet"), "html", table.attr='class="flat-table"')
+```
+
+```{r sample_sheet_recode}
+# Maybe set factor levels here
+```
+
+```{r makese,  eval = is.null(params$input_project)}
+cd = left_join(cd, sample_sheet)
+count_matrix =  as.matrix(counts[,-1])
+rownames(count_matrix) = counts[[1]]
+dge = SummarizedExperiment(assays = list(counts = count_matrix), colData = cd, rowData = counts[,1])
+
+```
+
+Input sample sheet.
+
+```{r sanitize_proj, eval =  is.null(params$input_project)}
+assays(dge) = assays(dge)['counts']
+```
+
+# Write data
+
+```{r}
+print(knitr::kable(colData(dge), caption = "Sample Sheet"), "html", table.attr='class="flat-table"')
+```
+
+Output data
+
+```{r write_deseq}
+saveRDS(dge, file = sprintf('%s_se.rds', params$output_root))
+```
+
