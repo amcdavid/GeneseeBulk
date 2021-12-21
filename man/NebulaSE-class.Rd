@@ -3,13 +3,12 @@
 \docType{class}
 \name{NebulaSE-class}
 \alias{NebulaSE-class}
-\alias{as-DESeqDataSet-method}
+\alias{coerce}
+\alias{coerce,DESeqDataSet,NebulaSE-method}
 \alias{tidy.NebulaSE}
 \alias{tidy,NebulaSE-method}
 \title{SummarizedExperiment with Nebula results}
 \usage{
-as(x, 'NebulaSE')
-
 \method{tidy}{NebulaSE}(x, ...)
 
 \S4method{tidy}{NebulaSE}(x, ...)

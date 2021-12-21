@@ -1,8 +1,7 @@
-#' Coerce from a DESeqDataSet
-#' @name as-DESeqDataSet-method
+#' @name coerce
+#' @title coerce
+#' @aliases coerce,DESeqDataSet,NebulaSE-method
 #' @rdname NebulaSE-class
-#' @param x [DESeq2::DESeqDataSet()]
-#' @usage as(x, 'NebulaSE')
 setAs('DESeqDataSet', 'NebulaSE', function(from) {
   value = new('NebulaSE')
   for (what in slotNames(value)) {
