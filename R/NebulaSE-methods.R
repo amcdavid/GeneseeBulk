@@ -38,7 +38,7 @@ tidy.NebulaSE = function(x, ...){
   terms = rd_info[which(rd_info$type == 'beta'),c('name', 'term', 'quantity')] %>% as.data.frame()
   fit_summary = left_join(fit_summary, terms, by = 'name')
   out = fit_summary %>%
-    pivot_wider(c(idx, term, convergence), names_from = quantity) %>%
+    tidyr::pivot_wider(c(idx, term, convergence), names_from = quantity) %>%
     rename(estimate = logFC, stderror = se, p.value = p) %>%
     group_by(term) %>%
     mutate(p.adjusted = p.adjust(p.value, method = 'fdr')) %>%

@@ -16,5 +16,25 @@ utils::globalVariables(c(
   "p.adjusted", # <gresults.NebulaSE>
   "estimate", # <do_nebula_contrasts>
   "p.value", # <do_nebula_contrasts>
+  "gene", # <run_nebula>
+  "gene_id", # <run_nebula>
+  "PC1", # <se_pca_plot>
+  "PC2", # <se_pca_plot>
+  "gene", # <plotLoadings>
+  "key", # <plotLoadings>
+  "value", # <plotLoadings>
+  "genef", # <plotLoadings>
+  "-sign(value)", # <plotLoadings>
+  "ggord", # <se_sparsepca_plot>
+  "1", # <se_sparsepca_plot>
+  "2", # <se_sparsepca_plot>
+  "log2FoldChange", # <modified_volc>
+  "pvalue", # <modified_volc>
+  "p_rank", # <modified_volc>
+  "SYMBOL", # <modified_volc>
+  "padj", # <modified_volc>
+  "label", # <modified_volc>
+  "log2Count", # <tidy.DESeqTransform>
+  "gene", # <tidy.DESeqTransform>
   NULL
 ))

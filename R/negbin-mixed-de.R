@@ -102,6 +102,7 @@ drop_na = function(x) x[!is.na(x)]
 #' @param ... passed to [nebula::nebula()]
 #'
 #' @return NebulaSE-class
+#' @autoglobal
 #' @export
 run_nebula = function(dge_, formula_, ...){
   parse_form = extract_re_var(formula_)

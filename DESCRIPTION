@@ -1,6 +1,6 @@
 Package: GeneseeBulk
 Title: Pipeline, analysis functions and markdown templates for bulk RNAseq
-Version: 0.0.0.9003
+Version: 0.10
 Authors@R: 
     person(given = "Andrew",
            family = "McDavid",
@@ -41,6 +41,7 @@ Suggests:
     matrixStats,
     tidyr,
     Matrix,
+    MatrixGenerics,
     broom,
     biobroom,
     data.table,
@@ -49,6 +50,7 @@ Suggests:
     rmdformats (>= 1.0.2),
     ComplexHeatmap,
     clusterProfiler,
+    org.Hs.eg.db,
     PMA,
     ggord,
     roxyglobals (>= 0.2.1),

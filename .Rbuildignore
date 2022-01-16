@@ -1,3 +1,4 @@
 ^GeneseeBulk\.Rproj$
 ^\.Rproj\.user$
 tests/testthat/known_cache/*.rds
+^\.github$

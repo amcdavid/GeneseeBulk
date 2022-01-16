@@ -73,10 +73,11 @@ biobroom_finish = function (x) {
 #' @method tidy DESeqTransform
 #' @importFrom dplyr "%>%"
 #' @export
+#' @autoglobal
 #' @author Hugo Tavares https://gist.github.com/tavareshugo/3973461a7daf8a43e65e3566d5deed14
 tidy.DESeqTransform = function(x, colData = FALSE, ...){
   ellipsis::check_dots_empty()
-  if(!requireNamespace(biobroom)){
+  if(!requireNamespace("biobroom")){
     stop("please install `biobroom` package")
   }
 
