@@ -34,11 +34,11 @@ proj_directory = Genesee::genesee_skeleton(genesee_root = tmp,
                           project_title = 'Crito',
                           project_type = 'RNA',
                           init_git = FALSE)
-#> Creating /var/folders/33/vpk59z855zzbrczltjnc52qh0000gn/T//RtmpR1YZSG/file7f0a2c93dfb4/Plato
-#> Creating /var/folders/33/vpk59z855zzbrczltjnc52qh0000gn/T//RtmpR1YZSG/file7f0a2c93dfb4/Plato/Crito
-#> Creating /var/folders/33/vpk59z855zzbrczltjnc52qh0000gn/T//RtmpR1YZSG/file7f0a2c93dfb4/Plato/Crito/rawdata
-#> Creating /var/folders/33/vpk59z855zzbrczltjnc52qh0000gn/T//RtmpR1YZSG/file7f0a2c93dfb4/Plato/Crito/refined
-#> Now symlink or copy raw data to /var/folders/33/vpk59z855zzbrczltjnc52qh0000gn/T//RtmpR1YZSG/file7f0a2c93dfb4/Plato/Crito/rawdata and run make_sample_sheet.
+#> Creating /var/folders/33/vpk59z855zzbrczltjnc52qh0000gn/T//RtmpStz8dl/file807925494e3f/Plato
+#> Creating /var/folders/33/vpk59z855zzbrczltjnc52qh0000gn/T//RtmpStz8dl/file807925494e3f/Plato/Crito
+#> Creating /var/folders/33/vpk59z855zzbrczltjnc52qh0000gn/T//RtmpStz8dl/file807925494e3f/Plato/Crito/rawdata
+#> Creating /var/folders/33/vpk59z855zzbrczltjnc52qh0000gn/T//RtmpStz8dl/file807925494e3f/Plato/Crito/refined
+#> Now symlink or copy raw data to /var/folders/33/vpk59z855zzbrczltjnc52qh0000gn/T//RtmpStz8dl/file807925494e3f/Plato/Crito/rawdata and run make_sample_sheet.
 ```
 
 After that, you would edit `00driver.R` to customize how the markdown
@@ -73,3 +73,5 @@ At the moment, there are 2 template available:
 list.files(proj_directory, pattern = '*.Rmd')
 #> [1] "01_load.Rmd"   "02_qc_dea.Rmd"
 ```
+
+You can browse the files [here](inst/RNA_markdown).

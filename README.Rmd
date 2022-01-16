@@ -58,3 +58,4 @@ template available:
 list.files(proj_directory, pattern = '*.Rmd')
 ```
 
+You can browse the files [here](inst/RNA_markdown).
