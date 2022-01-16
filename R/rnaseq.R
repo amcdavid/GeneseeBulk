@@ -44,7 +44,7 @@ se_sparsepca_plot = function(data,
                              grp_in = 'treatment', color_by = NULL, label_by = NULL) {
   datx = t(assay(data))
   sdatx = scale(datx, scale = FALSE)
-  ss = call_intercalate_right(PMA::SPC, x = sdatx, K=2, orth = TRUE, extra = SPC_args)
+  ss = Genesee::call_intercalate_right(PMA::SPC, x = sdatx, K=2, orth = TRUE, extra = SPC_args)
   v = ss$v
   rownames(v) = make.names(colnames(sdatx))
   vs = v[rowSums(abs(v)) > 0, ]
@@ -135,7 +135,6 @@ run_deseq_design = function(dge_, formula_, subset_){
   design(dge_) = formula_
   DESeq(dge_)
 }
-
 
 gresults.DESeqDataSet = function(object, ...) {
   DESeq2::results(object,...)
