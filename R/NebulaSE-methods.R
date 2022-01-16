@@ -12,7 +12,7 @@ setAs('DESeqDataSet', 'NebulaSE', function(from) {
 
 .nebula_terms = function(object){
   stopifnot(inherits(object, 'NebulaSE'))
-  S4Vectors::metadata(object)$terms
+  S4Vectors::metadata(object)$resultsNames
 }
 
 #' Tidying methods for ad-hoc `g_nebula` class
@@ -23,7 +23,9 @@ setAs('DESeqDataSet', 'NebulaSE', function(from) {
 #' @return `tibble` with columns matching [biobroom::tidy.DESeqResults()]
 #' @export
 #' @importFrom generics tidy
+#' @importFrom dplyr rename group_by mutate ungroup
 #' @method tidy NebulaSE
+#' @autoglobal
 #' @describeIn NebulaSE-class return tidy results
 tidy.NebulaSE = function(x, ...){
   ellipsis::check_dots_empty()
@@ -41,7 +43,14 @@ tidy.NebulaSE = function(x, ...){
     group_by(term) %>%
     mutate(p.adjusted = p.adjust(p.value, method = 'fdr')) %>%
     ungroup()
-  out
+  add_gene_name(out, x)
+}
+
+#' @importFrom dplyr left_join
+#' @autoglobal
+add_gene_name = function(results, obj){
+  gene_tab = tibble(gene = rownames(obj), idx = seq_len(nrow(obj)))
+  left_join(results, gene_tab, by = 'idx') %>% dplyr::select(-idx)
 }
 
 #' @export
@@ -51,10 +60,8 @@ setMethod('tidy', signature = c(x = 'NebulaSE'), tidy.NebulaSE)
 
 #' @export
 #' @describeIn gresults-g_nebula return the names of the model coefficients.
-gresults_names.NebulaSE = function(object){
-  res = unique(object$terms[['term']])
-  res[!is.na(res)]
-}
+#' @method gresults_names NebulaSE
+gresults_names.NebulaSE = .nebula_terms
 
 #' Return DESeq2-style `results`
 #'
@@ -68,6 +75,7 @@ gresults_names.NebulaSE = function(object){
 #' @importFrom methods as new slot "slot<-" slotNames
 #' @importFrom dplyr filter
 #' @rdname gresults-g_nebula
+#' @autoglobal
 #' @export
 gresults.NebulaSE = function(object, contrast, name, ...) {
   ellipsis::check_dots_empty()
@@ -81,12 +89,15 @@ gresults.NebulaSE = function(object, contrast, name, ...) {
   } else {
     stop("Must specify only one of `contrast` or `name`.")
   }
-  result = dplyr::rename(log2FoldChange = estimate,
+  result = result %>% dplyr::rename(log2FoldChange = estimate,
                          pvalue = p.value,
-                         padj = p.adjusted)
+                         padj = p.adjusted) %>%
+    as.data.frame()
+  rownames(result) = result[['gene']]
   return(result)
 }
 
+#' @autoglobal
 do_nebula_contrasts = function(object, contrast){
   # genes x p
   betas = as.matrix(object$summary[which(object$terms$quantity == 'logFC')])
