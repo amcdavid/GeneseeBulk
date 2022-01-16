@@ -1,0 +1,60 @@
+---
+output: github_document
+---
+
+<!-- README.md is generated from README.Rmd. Please edit that file -->
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.path = "man/figures/README-",
+  out.width = "100%"
+)
+```
+
+# GeneseeBulk
+
+<!-- badges: start -->
+<!-- badges: end -->
+
+The goal of GeneseeBulk is to facilitate analysis (differential expression) of Bulk RNASeq.
+
+## Installation
+
+You can install the development version of GeneseeBulk from [GitHub](https://github.com/) with:
+
+``` r
+# install.packages("devtools")
+devtools::install_github("amcdavid/GeneseeBulk")
+```
+
+## Example
+
+The Genesee* family of packages is organized around project templates that copy 
+over various parametrized markdown scripts.  
+As such, there's some code required to set
+overall parameters for the project.
+```{r example}
+library(GeneseeBulk)
+dir.create(tmp <- tempfile())
+proj_directory = Genesee::genesee_skeleton(genesee_root = tmp,
+                          investigator = 'Plato', 
+                          project_title = 'Crito',
+                          project_type = 'RNA',
+                          init_git = FALSE)
+```
+
+After that, you would edit `00driver.R` to customize how the markdown are run.
+```{r, file = file.path(proj_directory, '00driver.R'), echo = 3:21, eval = FALSE}
+
+```
+
+### Templates
+
+At the moment, there are `r length(list.files(proj_directory, pattern = '*.Rmd'))` 
+template available:
+```{r}
+list.files(proj_directory, pattern = '*.Rmd')
+```
+

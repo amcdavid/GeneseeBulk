@@ -4,12 +4,12 @@ project_title='{{Genesee.title}}'
 authors = '{{Genesee.authors}}'
 type = 'RNA'
 
-devtools::load_all("path/to/GeneseeBulk")
-devtools::load_all("path/to/Genesee")
+# devtools::load_all("path/to/GeneseeBulk")
+# devtools::load_all("path/to/Genesee")
 
 ## or
-# library(GeneseeBulk)
-# library(Genesee)
+library(GeneseeBulk)
+library(Genesee)
 
 #### set up directories and create sample file
 geneseesc_skeleton(main_directory, investigator, project_title, authors = authors, project_type = type)
@@ -26,7 +26,7 @@ rmarkdown::render('02_qc_dea.Rmd',
                                 sample_id = 'sample_id',
                                 plot_covariates = c("group", "tp", "mouse_group"),
                                 dea_method = 'deseq2',
-                                cache = TRUE
+                                cache = TRUE,
                                 output_root = "refined/02_qc_dea"
                   ), output_dir = 'reports',
                   output_file = '02_qc_dea.html'
