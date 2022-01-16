@@ -1,0 +1,9 @@
+model,term,n,term_class,plot_volcano,description
+beta,IFN_beta,1682,NA,TRUE,"description"
+beta,Intercept,1682,NA,FALSE,NA
+interaction,group_Naive_vs_DN,1682,group,FALSE,NA
+interaction,Intercept,1682,NA,FALSE,NA
+interaction,treatment_sle_vs_control,1682,sle,FALSE,NA
+interaction,treatmentsle.groupNaive,1682,NA,TRUE,NA
+sle_Naive,Intercept,1682,sle,FALSE,NA
+sle_Naive,treatment_sle_vs_control,1682,sle,TRUE,NA

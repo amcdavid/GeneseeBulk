@@ -1,0 +1,8 @@
+# name: identifier used for plotting, etc
+# formula DESeq2 formula
+# subset_expr -- expression evaluated using the colData
+# contrast -- currently unused
+name,formula,subset_expr,contrast
+interaction,~treatment*group,,
+beta,~IFN_beta,!is.na(IFN_beta),
+sle_Naive,~treatment,group=='Naive',

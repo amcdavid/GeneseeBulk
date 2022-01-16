@@ -9,13 +9,16 @@ params:
   se_subset: NULL # NULL or character. An arbitrary R expression to be parsed and evaled.
                    # should assign to `se`.
   plot_covariates: NULL #character vector in colData(se) used as aestetics for some plots
+                        # only second value can be continuous
   sample_id: 'sample_id' #field in colData(se) containing sampleID identifiers
   features_csv: NULL # csv with fields SYMBOL / gene_group.
   fdr_level: 0.1 # significance level used for plots / venn diagrams
+  gsea_level: 0.01 #signficance level used for GSEA
   terms_annotation_csv: NULL # csv file containing a cross-walk between the models fit, terms r turned, the term_class (used to group equivalent terms in stratified models), plot_volcano ` ogical` if a volcano plot should be made
   design_csv: NULL # csv with fields name,formula,subset_expression,contrast.  Used to fit D Seq2 models.
   dea_method: "deseq2" # "deseq2", "nebula" or "glmer.nb"
   cache: FALSE
+  gene_symbol_type: 'SYMBOL' # keytype from AnnotationDB
   organism: 'mouse'
 output:
   rmdformats::html_clean:
@@ -28,14 +31,14 @@ Notes:
     
 ```{r libraries, results='hide', echo = FALSE, warning = FALSE, message = FALSE}
 suppressPackageStartupMessages({
-library(GeneseeSC)
+library(GeneseeBulk)
+library(Genesee)
 library(DESeq2)
 library(dplyr)
 library(stringr)
 library(ggplot2)
 library(ggrepel)
 library(readr)
-library(GGally)
 library(ggbeeswarm)
 library(tibble)
 library(tidyr)
@@ -43,6 +46,14 @@ library(biobroom)
 library(broom)
 library(ComplexHeatmap)
 })
+
+# until these are doc'd and exported
+se_pca_plot = GeneseeBulk:::se_pca_plot
+se_sparsepca_plot = GeneseeBulk:::se_sparsepca_plot
+modified_volc = GeneseeBulk:::modified_volc
+plotLoadings = GeneseeBulk:::plotLoadings
+select = dplyr::select
+
 knitr::opts_chunk$set(warning = FALSE, error = FALSE, message = FALSE, echo = TRUE, dev = c('png', 'pdf'), cache = params$cache, autodep = params$cache)
 ```
 
@@ -52,7 +63,7 @@ print(params)
 ```
 
 
-```{r load, cache.extra = params$input_root}
+```{r load, cache.extra = file_mtime_exists(params$input_root)}
 se = readRDS(params$input_root)
 ```
 
@@ -60,7 +71,7 @@ se = readRDS(params$input_root)
 
 ```
 
-```{r}
+```{r, cache.extra = file_mtime_exists(params$design_csv)}
 designs = read_csv(params$design_csv, comment = "#")
 ```
 
@@ -77,12 +88,12 @@ if(is.null(params$plot_covariates)){
 dge = DESeqDataSet(se=se, design = as.formula(designs$formula[1]))
 ```
 
-```{r, eval = !is.null(params$features_csv)}
+```{r, eval = !is.null(params$features_csv), cache.extra = file_mtime_exists(params$features_csv)}
 if(!file.exists(params$features_csv)){
   warning('Could  not open ', params$features_csv)
 } else{
   feature_sheet = read_csv(params$features_csv)
-  rowData(dge) = left_join(as.data.frame(rowData(dge)), feature_sheet, by = 'SYMBOL')
+  rowData(dge) = left_join(as.data.frame(rowData(dge)), feature_sheet, by = 'gene')
 }
 
 ```
@@ -121,10 +132,10 @@ ds_trans = vst(dge_f)
 dge_genes = dge_f
 assay(dge_genes, 'cpm') = 2^(t(logcpm(dge_genes))-1)
 assays(dge_genes) = list(counts = assays(dge_genes)[['cpm']])
-dge_genes = dge_genes[feature_sheet$SYMBOL,]
-genes_of_interest = feature_sheet %>% left_join(tidy(dge_genes, colData = TRUE), c('SYMBOL' = 'gene'))
+dge_genes = dge_genes[feature_sheet$gene,]
+genes_of_interest = feature_sheet %>% left_join(tidy(dge_genes, colData = TRUE), by = 'gene')
 
-gi_plot = ggplot(genes_of_interest,  aes(x = SYMBOL, y = count, color = .data[[params$plot_covariates[1]]], shape = .data[[params$plot_covariates[2]]])) + geom_quasirandom(size = 1, groupOnX = TRUE) +  scale_y_continuous(trans = 'log2') +ylab('Counts per million reads') + coord_flip() + theme_minimal() + theme(axis.text.x = element_text(angle = 90))
+gi_plot = ggplot(genes_of_interest,  aes(x = gene, y = count, color = .data[[params$plot_covariates[1]]], shape = .data[[params$plot_covariates[2]]])) + geom_quasirandom(size = 1, groupOnX = TRUE) +  scale_y_continuous(trans = 'log2') +ylab('Counts per million reads') + coord_flip() + theme_minimal() + theme(axis.text.x = element_text(angle = 90))
 
 gi_plot
 ```
@@ -134,7 +145,7 @@ gi_plot
 ### Overall PCA
 
 ```{r PCA}
-pca_overall = GeneseeSC:::se_pca_plot(ds_trans, aes_point = aes(color = .data[[params$plot_covariates[1]]], shape = .data[[params$plot_covariates[2]]]), aes_label = aes(label = .data[[params$sample_id]]))
+pca_overall = se_pca_plot(ds_trans, aes_point = aes(shape = .data[[params$plot_covariates[1]]], color = .data[[params$plot_covariates[2]]]), aes_label = aes(label = .data[[params$sample_id]]))
 ```
 
 Plot PCA
@@ -187,7 +198,8 @@ dew = purrr::map2(setNames(design_fit$formula, design_fit$name), design_fit$subs
 ```
 
 ```{r}
-dew_df = purrr::map_dfr(dew, tidy, .id = 'model') %>% dplyr::rename(SYMBOL = gene)
+dew_df = purrr::map_dfr(dew, tidy, .id = 'model')
+dew_df[[params$gene_symbol_type]] = dew_df[['gene']]
 models_and_terms = dew_df %>% count(model, term)
 knitr::kable(models_and_terms)
 ```
@@ -216,18 +228,23 @@ write_csv(models_and_terms %>% mutate(term_class = NA, plot_volcano = TRUE, desc
 message("Consider editing ", paste0(params$output_root, '_terms.csv'),  " to provide this as a csv via `params$terms_annotation_csv`.")
 ``` 
 
-```{r, eval = !is.null(params$terms_annotation_csv)}
+```{r, eval = !is.null(params$terms_annotation_csv), cache.extra = file_mtime_exists(params$terms_annotation_csv)}
 models = read_csv(params$terms_annotation_csv)
 ```
 
+
 ```{r}
- 
-count_sig = semi_join(dew_df, models) %>% group_by(SYMBOL) %>% 
-    summarize(n_sig = sum(padj < .1, na.rm = TRUE), geomean_pvalue = sum(log10(pvalue), na.rm = TRUE), geovar_pvalue = var(log10(pvalue), na.rm = TRUE))
+if(nrow(inner_join(models, models_and_terms, by = c('model', 'term'))) == 0) 
+  stop("No overlapping models/terms in `models`.")
+```
+
+```{r}
+count_sig = semi_join(dew_df, models) %>% group_by(gene) %>% 
+    summarize(n_sig = sum(p.adjusted < .1, na.rm = TRUE), geomean_pvalue = sum(log10(p.value), na.rm = TRUE), geovar_pvalue = var(log10(p.value), na.rm = TRUE))
 
 sig_contrasts = semi_join(dew_df, count_sig %>% filter(rank(geomean_pvalue)<20)) %>% left_join(models)
 
-plt = ggplot(sig_contrasts, aes(y = SYMBOL, x = log2FoldChange, color = model)) + geom_text(aes(label = term_class))
+plt = ggplot(sig_contrasts, aes(y = gene, x = estimate, color = model)) + geom_text(aes(label = term_class))
 plt + geom_vline(xintercept = 0, lty = 2)
 ```
 
@@ -247,15 +264,15 @@ for(m in seq_len(nrow(models_plot))){
 
 ```{r venn}
 terms_by_model = left_join(models, dew_df) %>% ungroup() %>% 
-  filter(padj < params$fdr_level) %>% mutate(direction = sign(log2FoldChange))
+  filter(p.adjusted < params$fdr_level) %>% mutate(direction = sign(estimate))
 
 terms_by_model_list = terms_by_model %>% split(.$term_class)
 
 for(i in seq_along(terms_by_model_list)){
-  gene_subset = terms_by_model_list[[i]] %>% select(SYMBOL, model)
+  gene_subset = terms_by_model_list[[i]] %>% select(gene, model)
   n_model = count(gene_subset, model)
   gene_subset = left_join(gene_subset, n_model) %>% 
-    transmute(SYMBOL, model = glue::glue("{model}({n} genes)"))
+    transmute(gene, model = glue::glue("{model}({n} genes)"))
   v = venneuler::venneuler(gene_subset)
   
   plot(v, main = names(terms_by_model_list)[i])
@@ -269,20 +286,20 @@ Venn diagram
 
 # Gene set enrichment
 
-```{r hyper-geo-setup}
+```{r hyper-geo-setup, cache.extra = params$organism}
 library(clusterProfiler)
 
 db = switch(params$organism[1],
             mouse = "org.Mm.eg.db",
             human = "org.Hs.eg.db")
 
-remap = bitr(unique(dew_df$SYMBOL), 'SYMBOL', 'ENTREZID', db, drop = FALSE)
+remap = bitr(unique(dew_df[[params$gene_symbol_type]]), params$gene_symbol_type, 'ENTREZID', db, drop = FALSE)
 
 # take subset of term, and create model below...
-gsea_genes = left_join(dew_df, remap, by = 'SYMBOL') %>% 
-  mutate(direction = factor(sign(log2FoldChange), labels = c('-1' = 'down', '1' = 'up'))) %>% 
+gsea_genes = left_join(dew_df, remap, by = params$gene_symbol_type) %>% 
+  mutate(direction = factor(sign(estimate), labels = c('-1' = 'down', '1' = 'up'))) %>% 
   left_join(models) %>% 
-  filter(padj < params$fdr_level, abs(log2FoldChange) > 1, plot_volcano) %>% 
+  filter(p.value < params$gsea_level, plot_volcano) %>% 
   group_by(term, direction)
 
 term_direction_drop = gsea_genes %>% 
@@ -322,7 +339,7 @@ btm <- read.gmt(gmtfile)
 split_tovector = function(x, nm) sort(setNames(x, nm), decreasing = TRUE)
 
 
-cc_bmt = compareCluster(SYMBOL ~ pop + direction, data = filter(dew_df, pvalue < .01, abs(log2FoldChange) > 1 ), fun = "enricher", TERM2GENE = btm, universe = rownames(dge_f))
+cc_bmt = compareCluster(SYMBOL ~ pop + direction, data = filter(dew_df, p.value < .01, abs(log2FoldChange) > 1 ), fun = "enricher", TERM2GENE = btm, universe = rownames(dge_f))
 
 effect_group = purrr::map(split(dew_df, dew_df$pop), function(x) split_tovector(x[['stat']], x[['SYMBOL']]))
 
@@ -355,7 +372,7 @@ gsea_groupdf = ungroup(gsea_groupdf) %>% mutate(ID_name = str_replace_all(ID, 'C
 
 gsea_plot %+% gsea_groupdf
 
-cc_catalina = compareCluster(SYMBOL ~ pop + direction, data = filter(dew_df, pvalue < .01, abs(log2FoldChange) > 1 ), fun = "enricher", TERM2GENE = catalina_mod, universe = rownames(dge_f), pvalueCutoff = 1.1, qvalueCutoff = 1.1)
+cc_catalina = compareCluster(SYMBOL ~ pop + direction, data = filter(dew_df, p.value < .01, abs(log2FoldChange) > 1 ), fun = "enricher", TERM2GENE = catalina_mod, universe = rownames(dge_f), pvalueCutoff = 1.1, qvalueCutoff = 1.1)
 
 dotplot(cc_catalina, font.size = 6, showCategory = 20) + theme(axis.text.x = element_text(angle = 90))
 ```
@@ -369,7 +386,7 @@ Using http://software.broadinstitute.org/gsea/msigdb/collection_details.jsp#C7
 gmtfile <- 'reference/c7.all.v7.0.symbols.gmt'
 c7 <- read.gmt(gmtfile)
 
-cc_c7 = compareCluster(SYMBOL ~ pop + direction, data = filter(dew_df, pvalue < .01, abs(log2FoldChange)>1), fun = "enricher", TERM2GENE = c7, universe = rownames(dge_f))
+cc_c7 = compareCluster(SYMBOL ~ pop + direction, data = filter(dew_df, p.value < .01, abs(log2FoldChange)>1), fun = "enricher", TERM2GENE = c7, universe = rownames(dge_f))
 
 dotplot(cc_c7, font.size = 6) + theme(axis.text.x = element_text(angle = 90))
 ```
