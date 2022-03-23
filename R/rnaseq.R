@@ -78,7 +78,7 @@ clamp = function(x, modulus = 5) {
 }
 
 #' @autoglobal
-modified_volc = function(dd, name, heatmap_genes = NULL, heatmap_top_group = 'group', heatmap_max_gene = Inf, sample_subset_idx = TRUE, title = '', subtitle = "", ...){
+modified_volc = function(dd, name, heatmap_genes = NULL, heatmap_top_group = 'group', heatmap_max_gene = Inf, sample_subset_idx = TRUE, heatmap_args = list(), title = '', subtitle = "", ...){
   if(!missing(name) && !any(name == gresults_names(dd)))
     stop("bad coefficient ", name, ". Options are ", paste0(gresults_names(dd), collapse = ', '), '.')
   res = gresults(dd, name = name, ...) %>% as.data.frame() %>% tibble::rownames_to_column('SYMBOL') %>%
@@ -94,9 +94,10 @@ modified_volc = function(dd, name, heatmap_genes = NULL, heatmap_top_group = 'gr
     SummarizedExperiment::rowData(sub)$set = NA
   }
   catmat2 = SummarizedExperiment::rowData(sub)[, 'set', drop = FALSE]
-  h = ComplexHeatmap::Heatmap(assay(sub, 'zscore'),
+  h = Genesee::call_intercalate_right(ComplexHeatmap::Heatmap, matrix = assay(sub, 'zscore'),
               top_annotation =  ComplexHeatmap::HeatmapAnnotation(df = as.data.frame(colData(sub)[, heatmap_top_group]), which = 'column'),
-              name = 'Z-scored\nNormalized Exp', row_names_gp = grid::gpar(fontsize = 4), clustering_distance_rows = 'spearman', clustering_distance_columns = 'spearman', column_names_gp = grid::gpar(fontsize = 4))# + HeatmapAnnotation(catmat2, which = 'row')
+              clustering_distance_rows = 'spearman', clustering_distance_columns = 'spearman', column_names_gp = grid::gpar(fontsize = 4), row_names_gp = grid::gpar(fontsize = 4),
+              name = 'Z-scored\nNormalized Exp', extra = heatmap_args)# + HeatmapAnnotation(catmat2, which = 'row')
   print(h)
   } else{
     message("No significant comparisons in ", title, "(", subtitle, ").")
