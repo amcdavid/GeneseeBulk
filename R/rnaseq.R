@@ -78,7 +78,7 @@ clamp = function(x, modulus = 5) {
 }
 
 #' @autoglobal
-modified_volc = function(dd, name, direction, heatmap_top_group = 'group', heatmap_max_gene = Inf, subset_idx = TRUE, title = '', subtitle = "", ...){
+modified_volc = function(dd, name, heatmap_genes = NULL, heatmap_top_group = 'group', heatmap_max_gene = Inf, sample_subset_idx = TRUE, title = '', subtitle = "", ...){
   if(!missing(name) && !any(name == gresults_names(dd)))
     stop("bad coefficient ", name, ". Options are ", paste0(gresults_names(dd), collapse = ', '), '.')
   res = gresults(dd, name = name, ...) %>% as.data.frame() %>% tibble::rownames_to_column('SYMBOL') %>%
@@ -86,7 +86,8 @@ modified_volc = function(dd, name, direction, heatmap_top_group = 'group', heatm
     mutate(p_rank = rank(pvalue), label = ifelse(p_rank < 50, SYMBOL, ''))
   res[is.na(res$padj),'padj'] = 1
   trans = DESeq2::vst(dd)
-  sub = trans[filter(res, padj < .1, p_rank< heatmap_max_gene)$SYMBOL,subset_idx]
+  if(is.null(heatmap_genes)) heatmap_genes = filter(res, padj < .1, p_rank< heatmap_max_gene)$SYMBOL
+  sub = trans[heatmap_genes,sample_subset_idx]
   if(nrow(sub)>0){
   SummarizedExperiment::assay(sub, 'zscore') = t(scale(t(assay(sub))))
   if(!('set' %in% names(SummarizedExperiment::rowData(sub)))){
