@@ -14,6 +14,7 @@ params:
   features_csv: NULL # csv with fields SYMBOL / gene_group.
   fdr_level: 0.1 # significance level used for plots / venn diagrams
   gsea_level: 0.01 #signficance level used for GSEA
+  compareCluster_args: NULL #passed to compareCluster
   terms_annotation_csv: NULL # csv file containing a cross-walk between the models fit, terms r turned, the term_class (used to group equivalent terms in stratified models), plot_volcano ` ogical` if a volcano plot should be made
   design_csv: NULL # csv with fields name,formula,subset_expression,contrast.  Used to fit D Seq2 models.
   dea_method: "deseq2" # "deseq2", "nebula" or "glmer.nb"
@@ -28,7 +29,7 @@ output:
 ---
 
 Notes:
-    
+
 ```{r libraries, results='hide', echo = FALSE, warning = FALSE, message = FALSE}
 suppressPackageStartupMessages({
 library(GeneseeBulk)
@@ -58,10 +59,10 @@ knitr::opts_chunk$set(warning = FALSE, error = FALSE, message = FALSE, echo = TR
 ```
 
 Knit with:
+
 ```{r}
 print(params)
 ```
-
 
 ```{r load, cache.extra = file_mtime_exists(params$input_root)}
 se = readRDS(params$input_root)
@@ -111,10 +112,6 @@ logcpm = function(x){
 colData(dge) = cbind(colData(dge), logcpm(dge)[, !is.na(rowData(dge)$group)])
 ```
 
-
-
-
-
 ```{r filter}
 dge_f = dge#[!duplicated(dge$genes$ENSEMBL) | is.na(dge$genes$ENSEMBL),]
 #dge_f = dge[,dge$group == params$group]
@@ -156,7 +153,6 @@ plotLoadings(pca_overall$pca)
 
 Plot PCA loadings
 
-
 ```{r, results = 'hide', eval = TRUE}
 library(PMA)
 library(ggord)
@@ -173,11 +169,11 @@ bspca = se_sparsepca_plot(ds_trans, grp_in = plot_covariates[1],
 bspca$ord1
 ```
 
-This is a variant of principal component analysis that focuses on finding a minimum set of genes that explain maximal variance.  The overall picture tends to be similar to ordinary PCA, but the coordinates might be flipped.  The genes labelled on the plot shows how those genes contribute to where the samples are arrayed in PCA space.
+This is a variant of principal component analysis that focuses on finding a minimum set of genes that explain maximal variance. The overall picture tends to be similar to ordinary PCA, but the coordinates might be flipped. The genes labelled on the plot shows how those genes contribute to where the samples are arrayed in PCA space.
 
 # Differential expression testing
 
-Currently we test `r nrow(designs)` different models.  Specifications are shown below:
+Currently we test `r nrow(designs)` different models. Specifications are shown below:
 
 ```{r}
 knitr::kable(designs)
@@ -186,7 +182,6 @@ knitr::kable(designs)
 ```{r}
 dea_method = match.arg(params$dea_method, c('deseq2', 'nebula'))
 ```
-
 
 ```{r run-deseq2, eval = dea_method == 'deseq2'}
 dew = purrr::map2(setNames(designs$formula, designs$name), designs$subset_expr, function(x, y) run_deseq_design(dge_f,  as.formula(x), y))
@@ -226,12 +221,11 @@ models = tribble(~ term, ~ model, ~ term_class, ~plot_volcano,
 #^^^^^ models/terms to plot. modify as needed
 write_csv(models_and_terms %>% mutate(term_class = NA, plot_volcano = TRUE, description = NA), paste0(params$output_root, '_terms.csv'))
 message("Consider editing ", paste0(params$output_root, '_terms.csv'),  " to provide this as a csv via `params$terms_annotation_csv`.")
-``` 
+```
 
 ```{r, eval = !is.null(params$terms_annotation_csv), cache.extra = file_mtime_exists(params$terms_annotation_csv)}
 models = read_csv(params$terms_annotation_csv)
 ```
-
 
 ```{r}
 if(nrow(inner_join(models, models_and_terms, by = c('model', 'term'))) == 0) 
@@ -247,7 +241,6 @@ sig_contrasts = semi_join(dew_df, count_sig %>% filter(rank(geomean_pvalue)<20))
 plt = ggplot(sig_contrasts, aes(y = gene, x = estimate, color = model)) + geom_text(aes(label = term_class))
 plt + geom_vline(xintercept = 0, lty = 2)
 ```
-
 
 ```{r heatmaps, fig.height = 7}
 models_plot = filter(models, plot_volcano)
@@ -281,7 +274,6 @@ for(i in seq_along(terms_by_model_list)){
 
 Genes significant at `r params$fdr_level` by model group.
 
-
 Venn diagram
 
 # Gene set enrichment
@@ -308,20 +300,19 @@ term_direction_drop = gsea_genes %>%
   filter(n < 10)
 ```
 
-
 ```{r hyper-geo-drop, results = 'as.is'}
 knitr::kable(term_direction_drop)
 
 gsea_genes = gsea_genes %>% anti_join(term_direction_drop)
 ```
 
-Dropping the following sets for having < 10 enriched genes.
+Dropping the following sets for having \< 10 enriched genes.
 
 ```{r hyper-geo}
-cc_go = compareCluster(ENTREZID ~ term + direction, 
+cc_go = Genesee::call_intercalate_right(compareCluster, geneClusters = ENTREZID ~ term + direction, 
                        data = gsea_genes, 
                        OrgDb = db, readable = TRUE, universe = unique(remap$ENTREZID), 
-                       fun = 'enrichGO')
+                       fun = 'enrichGO', extra = params$compareCluster_args)
 ```
 
 ```{r clusterGO, fig.width=6, fig.height=4}
@@ -377,10 +368,9 @@ cc_catalina = compareCluster(SYMBOL ~ pop + direction, data = filter(dew_df, p.v
 dotplot(cc_catalina, font.size = 6, showCategory = 20) + theme(axis.text.x = element_text(angle = 90))
 ```
 
-
 ### MsigDB immunogenic signatures
 
-Using http://software.broadinstitute.org/gsea/msigdb/collection_details.jsp#C7
+Using <http://software.broadinstitute.org/gsea/msigdb/collection_details.jsp#C7>
 
 ```{r clusterMsigDB, fig.width = 8, fig.height=10, eval = FALSE}
 gmtfile <- 'reference/c7.all.v7.0.symbols.gmt'

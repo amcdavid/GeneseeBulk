@@ -11,7 +11,8 @@ local({
                                     sample_id = 'sample_id',
                                     plot_covariates = c('group', 'IFN_beta'),
                                     organism = 'human',
-                                    gsea_level = 0.01
+                                    gsea_level = 0.05,
+                                    compareCluster_args = list(pvalueCutoff = 1.0, qvalueCutoff = 1.0)
                       ), output_dir = 'reports')
   })
 

@@ -1,6 +1,6 @@
 Package: GeneseeBulk
 Title: Pipeline, analysis functions and markdown templates for bulk RNAseq
-Version: 0.10.0001
+Version: 0.10.0002
 Authors@R: 
     person(given = "Andrew",
            family = "McDavid",
